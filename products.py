@@ -130,8 +130,10 @@ class Products(Frame):
         self.bt_edit.grid(row=0, column=3, padx=5, pady=10)
         self.bt_remove = Button(fr_button, text="Eliminar", border_width=1, width=60, command=self.remove_product)
         self.bt_remove.grid(row=0, column=4, padx=5, pady=10)
+        self.bt_update = Button(fr_button, text="Actualizar", border_width=1, width=60, command=self.update_table)
+        self.bt_update.grid(row=0, column=5, padx=5, pady=10)
         self.bt_return = Button(fr_button, text="Regresar", border_width=1, width=60, command=self._return)
-        self.bt_return.grid(row=0, column=5, padx=5, pady=10)
+        self.bt_return.grid(row=0, column=6, padx=5, pady=10)
         
         self.default()
         self.update_table()
@@ -150,7 +152,7 @@ class Products(Frame):
             return None
         
         id = search_id()
-        print("id -> ", id)
+        # print("id -> ", id)
         if id is None:
             messagebox.showinfo(">_<", "No se encontro el producto")
             return
@@ -317,18 +319,8 @@ class Products(Frame):
     def update_table(self) -> None:
         self.clear_table()
         products = db_product.get_all_products(self)
-        # products = self.convert_supplier(products)
-        # print(products)
         self.insert_table(products)
-    
-    # def convert_supplier(self, list_supplier: list) -> list:
-    #     aux = list()
-    #     for L in list_supplier:
-    #         L = list(L)
-    #         L[8] = self.suppliers[L[8]]
-    #         aux.append(L)
-    #     return aux
-    
+
     def validate(self) -> None:
         # Empty
         entry_empty(self.tx_id, "ID")

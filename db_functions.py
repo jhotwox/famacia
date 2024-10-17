@@ -122,8 +122,39 @@ def get_column_order_id(table: str, column: str) -> list | None:
         print(f"[-] get_column: {err}")
     finally:
         conn.close()
+        
+def get_unitary_price_by_id(product_id: int = 0) -> float | None:
+    try:
+        conn = con.conection().open()
+        cursor = conn.cursor()
+        sql = f"SELECT purchase_price FROM product WHERE id = {product_id}"
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        conn.commit()
+        if row is None:
+            raise Exception(f"Product '{product_id}' doesn't exist")
+        return row[0]
+    except mysql.connector.Error as err:
+        print(f"[-] get_unitary_price_by_id SQL: {err}")
+    except Exception as err:
+        print(f"[-] get_unitary_price_by_id: {err}")
 
-
+def get_supplier_by_purchase_id(purchase_id: int) -> int | None:
+    try:
+        conn = con.conection().open()
+        cursor = conn.cursor()
+        sql = f"SELECT product.supplier FROM product, detail_purchase WHERE product.id = detail_purchase.product_id AND detail_purchase.purchase_id = {purchase_id}"
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        conn.commit()
+        if row is None:
+            raise Exception(f"Purchase '{purchase_id}' doesn't exist")
+        return row[0]
+    except mysql.connector.Error as err:
+        print(f"[-] get_supplier_by_purchase_id SQL: {err}")
+    except Exception as err:
+        print(f"[-] get_supplier_by_purchase_id: {err}")
+ 
 def get_column_with_user(table: str, column: str, user_id: int) -> list | None:
     """Return a column in form of list where the query contain the user_id and it's ordered by id
     

@@ -3,7 +3,7 @@ from tkinter import messagebox
 from tkinter.ttk import Treeview
 from functions import entry_empty, find_id, is_alphabetic, is_numeric, get_column_from_list, get_datetime
 from table_style import apply_style
-from db_functions import name_available
+from db_functions import name_available, get_unitary_price_by_id, get_supplier_by_purchase_id
 from purchase import purchase as purchase_class
 from detail_purchase import detail_purchase as detail_purchase_class
 from db_purchase import db_purchase
@@ -56,6 +56,7 @@ class Purchases(Frame):
         
         self.purchases = self.id_purchases.copy()
         self.selected_purchase = StringVar(value=self.purchases[0] if len(self.purchases) > 0 else "No disponible")
+        self.selected_purchase.trace("w", self.on_selection_purchase)
         self.opm_id = OptMenu(fr_entry, values=self.purchases, variable=self.selected_purchase)
         self.opm_id.grid(row=0, column=1, pady=5)
         lb_user_id = Label(fr_entry, text="ID usuario")
@@ -66,9 +67,11 @@ class Purchases(Frame):
         self.tx_user_id.grid(row=0, column=3, pady=5)
 
         self.suppliers = db_supplier.get_suppliers(self)
+        # print("Suppliers -> ", self.suppliers)
         lb_supplier = Label(fr_entry, text="Proveedor")
         lb_supplier.grid(row=1, column=0, pady=0, sticky="w")
         self.selected_supplier = StringVar(value=next(iter(self.suppliers.values())) if len(self.suppliers) > 0 else "No disponible")
+        self.selected_supplier.trace("w", self.on_selection_supplier)
         self.opm_supplier = OptMenu(fr_entry, values=list(self.suppliers.values()), variable=self.selected_supplier)
         self.opm_supplier.grid(row=1, column=1, pady=5, padx=20)
         lb_quantity = Label(fr_entry, text="Cantidad")
@@ -80,6 +83,7 @@ class Purchases(Frame):
         lb_product = Label(fr_entry, text="Producto")
         lb_product.grid(row=2, column=0, pady=0, sticky="w")
         self.selected_product = StringVar(value=next(iter(self.products.values())) if len(self.products) > 0 else "No disponible")
+        self.selected_product.trace("w", self.on_selection_product)
         self.opm_product = OptMenu(fr_entry, values=list(self.products.values()), variable=self.selected_product)
         self.opm_product.grid(row=2, column=1, pady=5, padx=20)
         lb_unitary_price = Label(fr_entry, text="Precio unitario")
@@ -151,8 +155,67 @@ class Purchases(Frame):
         self.default()
         self.update_table()
     
-    def on_selection_search_purchase(self):
-        self.search_products = db_product.get_supplier_products(self, self.opm_search_purchase.get())
+    def on_selection_search_purchase(self, *args):
+        self.search_products = db_product.get_dict_products(self)
+        self.opm_search_product.configure(values=list(self.search_products.values()))
+        if len(self.search_products.values()) > 0:
+            self.opm_search_product.set(value=next(iter(self.search_products.values())))
+            self.bt_search.configure(state=ENABLE)
+        else:
+            self.opm_search_product.set("No disponible")
+            self.bt_search.configure(state=DISABLED)
+
+    def on_selection_purchase(self, *args):
+        if self.band is None:
+            print("on_selection_purchase")
+            self.opm_supplier.configure(state=ENABLE)
+            try:
+                print("opm_id -> ", self.opm_id.get())
+                if self.opm_id.get() != None and self.opm_id.get() != "No disponible":
+                    # FIXME: La consulta no es correcta, correguir la función
+                    supplier_id = get_supplier_by_purchase_id(self.opm_id.get())
+                    print("on_selection_purchase supplier_id -> ", supplier_id)
+                    if supplier_id is None:
+                        print("[-] Supplier is None")
+                    
+                    supplier = self.suppliers[supplier_id]
+                    self.opm_supplier.set(supplier)
+            except Exception as err:
+                print("[-] on_selection_purchase: ", err)
+                self.opm_supplier.set("No disponible")
+            finally:
+                self.opm_supplier.configure(state=DISABLED)
+
+    def on_selection_supplier(self, *args):
+        if self.opm_supplier.get() != "No disponible":
+            print("*-"*20)
+            print("on_selection_supplier")
+            print("Supplier -> ", self.opm_supplier.get())
+            print("Suppliers -> ", self.suppliers)
+            self.products = db_product.get_dict_products_by_supplier(self, find_id(self.suppliers, self.opm_supplier.get()))
+            print("products -> ", self.products)
+            print("*-"*20)
+            self.opm_product.configure(values=list(self.products.values()))
+            self.opm_product.set(next(iter(self.products.values())) if len(self.products) > 0 else "No disponible")
+            
+        # if self.opm_product.get() != "No disponible":
+        #     self.tx_unitary_price.delete(0, END)
+        #     unitary_price = get_unitary_price_by_id(find_id(self.products, self.opm_product.get()))
+        #     self.tx_unitary_price.insert(0, unitary_price)
+        # else:
+        #     self.tx_unitary_price.delete(0, END)
+    
+    def on_selection_product(self, *args):
+        if self.opm_product.get() != "No disponible" and self.band != False:
+            self.tx_unitary_price.delete(0, END)
+            product_id = find_id(self.products, self.opm_product.get())
+            try:
+                unitary_price = get_unitary_price_by_id(product_id if product_id is not None else 0)
+                self.tx_unitary_price.insert(0, unitary_price)
+            except Exception as err:
+                print("[-] on_selection_product", err)
+        else:
+            self.tx_unitary_price.delete(0, END)
     
     def search_purchase(self) -> None:
         def search_id():
@@ -163,7 +226,7 @@ class Purchases(Frame):
             return None
         
         id = search_id()
-        print("id -> ", id)
+        # print("id -> ", id)
         if id is None:
             messagebox.showinfo(">_<", "No se encontro el producto")
             return
@@ -181,6 +244,8 @@ class Purchases(Frame):
             
             values = self.table.item(selected, "values")
             
+            self.products = db_product.get_dict_products_by_supplier(self, values[2])
+            print("products -> ", self.products)
             detail_purchase = detail_purchase_class(int(values[0]), find_id(self.products, values[1]))
             db_detail_purchase.remove(self, detail_purchase)
             
@@ -196,7 +261,22 @@ class Purchases(Frame):
             messagebox.showerror("Error", "No se logro eliminar el producto")
     
     def add_purchase(self) -> None:
-        return
+        self.opm_id.configure(state=ENABLE)
+        self.tx_quantity.configure(state=ENABLE)
+        self.opm_product.configure(state=ENABLE)
+        self.tx_unitary_price.configure(state=ENABLE)
+        self.tx_date.configure(state=ENABLE)
+        self.tx_date.insert(0, get_datetime())
+        self.tx_date.configure(state=DISABLED)
+        
+        self.bt_add.configure(state=DISABLED)
+        self.bt_new.configure(state=DISABLED)
+        self.bt_save.configure(state=ENABLE)
+        self.bt_cancel.configure(state=ENABLE)
+        self.bt_edit.configure(state=DISABLED)
+        self.bt_remove.configure(state=DISABLED)
+        
+        self.clear_purchase()
     
     def new_purchase(self) -> None:
         self.opm_id.configure(state=ENABLE)
@@ -204,6 +284,7 @@ class Purchases(Frame):
         self.tx_quantity.configure(state=ENABLE)
         self.opm_product.configure(state=ENABLE)
         self.tx_unitary_price.configure(state=ENABLE)
+        self.tx_date.configure(state=ENABLE)
         self.tx_date.insert(0, get_datetime())
         self.tx_date.configure(state=DISABLED)
         
@@ -221,6 +302,9 @@ class Purchases(Frame):
     
     def save_purchase(self) -> None:
         try:
+            # print("Supplier -> ", self.opm_supplier.get())
+            # print("Suppliers -> ", self.suppliers)
+            # print("supplier_id -> ", find_id(self.suppliers, self.opm_supplier.get()))
             self.validate()
         except Exception as error:
             messagebox.showwarning("Error >_<", error)
@@ -230,7 +314,7 @@ class Purchases(Frame):
             product_id = find_id(self.products, self.opm_product.get())
             # print("Supplier ID -> ", supplier)
             
-            detail_purchase = detail_purchase_class(int(self.opm_id.get()), product_id, int(self.tx_quantity.get()), float(self.tx_unitary_price.get()))
+            detail_purchase = detail_purchase_class(int(self.opm_id.get()), product_id, float(self.tx_unitary_price.get()), int(self.tx_quantity.get()))
             
             if self.band == True:
                 total: float = int(self.tx_quantity.get()) * float(self.tx_unitary_price.get())
@@ -262,17 +346,22 @@ class Purchases(Frame):
         values = self.table.item(selected, "values")
         self.enable_edit()
         self.opm_id.set(values[0])
+        self.selected_purchase.set(values[0])
         # FIXME: Ver que hacer con esta linea
         # self.opm_id.configure(state=DISABLED)
         self.opm_product.set(values[1])
+        self.selected_product.set(values[1])
         self.opm_supplier.set(self.suppliers[int(values[2])])
+        self.selected_supplier.set(self.opm_supplier.get())
         self.tx_date.insert(0, values[3])
+        self.tx_unitary_price.delete(0, END)
         self.tx_unitary_price.insert(0, values[4])
         self.tx_quantity.insert(0, values[5])
     
     def edit_purchase(self) -> None:
         try:
             self.get_purchase()
+            self.products = db_product.get_dict_products_by_supplier(self, find_id(self.suppliers, self.opm_supplier.get()))
         except Exception as err:
             print("[-] ", err)
             messagebox.showinfo("._.", err)
@@ -296,6 +385,12 @@ class Purchases(Frame):
         
     def default(self):
         # TODO: Actualizar los valores de los productos, proveedores y compras (Pensar cuales son necesarios)
+        self.products = {}
+        self.purchases = db_purchase.get_id_purchases(self, self.profile)
+        self.opm_id.configure(values=self.purchases)
+        self.opm_search_purchase.configure(values=self.purchases)
+        
+        self.bt_search.configure(state=ENABLE)
         self.state(True)
         self.clear_purchase()
         self.bt_add.configure(state=ENABLE)
@@ -313,16 +408,25 @@ class Purchases(Frame):
         self.tx_quantity.configure(state=ENABLE if state else DISABLED)
         self.tx_unitary_price.configure(state=ENABLE if state else DISABLED)
         self.tx_date.configure(state=ENABLE if state else DISABLED)
-        
-        
+    
     def enable_edit(self):
+        self.bt_search.configure(state=DISABLED)
+        
+        self.bt_add.configure(state=DISABLED)
         self.bt_new.configure(state=DISABLED)
         self.bt_save.configure(state=ENABLE)
         self.bt_cancel.configure(state=ENABLE)
         self.bt_edit.configure(state=DISABLED)
         self.bt_remove.configure(state=DISABLED)
         
-        self.state(True)
+        self.opm_supplier.configure(state=ENABLE)
+        
+        self.opm_id.configure(state=DISABLED)
+        self.opm_supplier.configure(state=DISABLED)
+        self.opm_product.configure(state=DISABLED)
+        self.tx_quantity.configure(state=ENABLE)
+        self.tx_unitary_price.configure(state=ENABLE)
+        self.tx_date.configure(state=ENABLE)
         self.clear_purchase()
     
     def insert_table(self, data: list) -> None:
@@ -335,6 +439,7 @@ class Purchases(Frame):
     def update_table(self) -> None:
         self.clear_table()
         detail_purchase = db_detail_purchase.get_detail_purchases_by_user_id(self, self.profile.get_id())
+        # print(detail_purchase)
         if len(detail_purchase) < 1:
             messagebox.showwarning("No hay productos", "No hay productos disponibles")
         self.insert_table(detail_purchase)
@@ -353,33 +458,32 @@ class Purchases(Frame):
         entry_empty(self.tx_unitary_price, "Precio u.")
         entry_empty(self.tx_quantity, "Cantidad")
         
-        if self.selected_purchase == "":
+        if self.selected_purchase.get() == "":
             raise Exception("Seleccione una compra")
         
-        if self.selected_supplier == "":
+        if self.selected_supplier.get() == "":
             raise Exception("Seleccione un proveedor")
         
-        if self.selected_product == "":
+        if self.selected_product.get() == "":
             raise Exception("Seleccione un producto")
         
         # Exist
         detail_purchase = detail_purchase_class(int(self.opm_id.get()), find_id(self.products, self.opm_product.get()))
-        if self.band != False:
+        if self.band == None:
             if db_detail_purchase.search_bool(self, detail_purchase):
                 raise Exception("El producto ya existe en esta compra")
         
-        if self.selected_purchase == "No disponible":
+        if self.selected_purchase.get() == "No disponible":
             raise Exception("No hay compras disponibles")
         
-        if self.selected_supplier == "No disponible":
+        if self.selected_supplier.get() == "No disponible":
             raise Exception("No hay proveedores disponibles")
         
-        if self.selected_product == "No disponible":
+        if self.selected_product.get() == "No disponible":
             raise Exception("No hay productos disponibles")
         
         # Type
-        if not self.opm_id.get().isdecimal():
-            raise Exception("ID debe ser un número")
+        # self.opm_id.get() Es entero por default
         
         if not self.tx_quantity.get().isdecimal():
             raise Exception("Cantidad debe ser un número entero")
@@ -387,10 +491,11 @@ class Purchases(Frame):
         if not is_numeric(self.tx_unitary_price.get()):
             raise Exception("Precio unitario debe ser un número")
         
-        if self.opm_supplier.get() not in list(self.suppliers.values()):
+        
+        if self.selected_supplier.get() not in list(self.suppliers.values()):
             raise Exception("El proveedor no esta listado")
         
-        if self.opm_product.get() not in list(self.products.values()):
+        if self.selected_product.get() not in list(self.products.values()):
             raise Exception("El producto no esta listado")
         
         try:

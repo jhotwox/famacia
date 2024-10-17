@@ -60,7 +60,7 @@ def get_datetime(days: int = 0) -> datetime:
     """
     
     date = datetime.now().astimezone(pytz.timezone('America/Mexico_City')).date()+timedelta(days=days)
-    return date.strftime("%d/%m/%Y")
+    return date.strftime("%Y-%m-%d")
 # print(get_datetime())
 
 def get_date(days: int = 0) -> list[str]:

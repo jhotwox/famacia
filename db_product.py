@@ -91,6 +91,22 @@ class db_product:
             print("[-] get_all_products: ", err)
             messagebox.showerror("Error", "Error en la consulta")
     
+    def get_dict_products(self) -> dict:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT id, name FROM {table}"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchall()
+            self.conn.commit()
+            self.conn.close()
+            if rows is None:
+                raise Exception("No se encontraron productos")
+            return {item[0]: item[1] for item in rows}
+        except Exception as err:
+            print("[-] get_dict_products: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+    
     def get_supplier_products(self, supplier_id: int) -> list:
         try:
             self.conn = con.conection().open()
