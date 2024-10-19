@@ -1,9 +1,9 @@
 from customtkinter import END, CTkButton as Button, CTkEntry as Entry, CTkLabel as Label, DISABLED, NORMAL as ENABLE, CTkFrame as Frame, CTkOptionMenu as OptMenu, StringVar, CTkScrollbar as Scrollbar
 from tkinter import messagebox
 from tkinter.ttk import Treeview
-from functions import entry_empty, find_id, is_alphabetic, is_numeric, get_column_from_list, get_datetime
+from functions import entry_empty, find_id, is_numeric, get_column_from_list, get_datetime, print_time
 from table_style import apply_style
-from db_functions import name_available, get_unitary_price_by_id, get_supplier_by_purchase_id
+from db_functions import get_unitary_price_by_id, get_supplier_by_purchase_id
 from purchase import purchase as purchase_class
 from detail_purchase import detail_purchase as detail_purchase_class
 from db_purchase import db_purchase
@@ -166,13 +166,17 @@ class Purchases(Frame):
             self.bt_search.configure(state=DISABLED)
 
     def on_selection_purchase(self, *args):
+        print("bandera -> ", self.band)
+        if self.band == False or self.band == True:
+            return
+        
         if self.band is None:
             print("on_selection_purchase")
             self.opm_supplier.configure(state=ENABLE)
             try:
                 print("opm_id -> ", self.opm_id.get())
                 if self.opm_id.get() != None and self.opm_id.get() != "No disponible":
-                    # FIXME: La consulta no es correcta, correguir la función
+                    # TODO: La consulta puede estar mal
                     supplier_id = get_supplier_by_purchase_id(self.opm_id.get())
                     print("on_selection_purchase supplier_id -> ", supplier_id)
                     if supplier_id is None:
@@ -187,9 +191,13 @@ class Purchases(Frame):
                 self.opm_supplier.configure(state=DISABLED)
 
     def on_selection_supplier(self, *args):
+        if self.band == False:
+            return
+        
         if self.opm_supplier.get() != "No disponible":
             print("*-"*20)
             print("on_selection_supplier")
+            print_time()
             print("Supplier -> ", self.opm_supplier.get())
             print("Suppliers -> ", self.suppliers)
             self.products = db_product.get_dict_products_by_supplier(self, find_id(self.suppliers, self.opm_supplier.get()))
@@ -206,12 +214,16 @@ class Purchases(Frame):
         #     self.tx_unitary_price.delete(0, END)
     
     def on_selection_product(self, *args):
+        if self.band == False:
+            return
+        
         if self.opm_product.get() != "No disponible" and self.band != False:
             self.tx_unitary_price.delete(0, END)
             product_id = find_id(self.products, self.opm_product.get())
             try:
-                unitary_price = get_unitary_price_by_id(product_id if product_id is not None else 0)
-                self.tx_unitary_price.insert(0, unitary_price)
+                if product_id is not None:
+                    unitary_price = get_unitary_price_by_id(product_id)
+                    self.tx_unitary_price.insert(0, unitary_price)
             except Exception as err:
                 print("[-] on_selection_product", err)
         else:
@@ -279,6 +291,7 @@ class Purchases(Frame):
         self.clear_purchase()
     
     def new_purchase(self) -> None:
+        self.band = True
         self.opm_id.configure(state=ENABLE)
         self.opm_supplier.configure(state=ENABLE)
         self.tx_quantity.configure(state=ENABLE)
@@ -298,7 +311,6 @@ class Purchases(Frame):
         self.clear_purchase()
         self.opm_id.set(db_purchase.get_max_id(self)+1)
         self.opm_id.configure(state=DISABLED)
-        self.band = True
     
     def save_purchase(self) -> None:
         try:
@@ -311,9 +323,18 @@ class Purchases(Frame):
             return
         
         try:
-            product_id = find_id(self.products, self.opm_product.get())
-            # print("Supplier ID -> ", supplier)
+            print("products -> ", self.products)
+            print("selected_product -> ", self.selected_product.get())
+            product_id = find_id(self.products, self.selected_product.get())
             
+            print("*-"*20)
+            print("save_purchase")
+            print_time()
+            print("purchase_id -> ", int(self.opm_id.get()))
+            print("product_id -> ", product_id)
+            print("unitary_price -> ", float(self.tx_unitary_price.get()))
+            print("quantity -> ", int(self.tx_quantity.get()))
+            print("*-"*20)
             detail_purchase = detail_purchase_class(int(self.opm_id.get()), product_id, float(self.tx_unitary_price.get()), int(self.tx_quantity.get()))
             
             if self.band == True:
@@ -347,8 +368,6 @@ class Purchases(Frame):
         self.enable_edit()
         self.opm_id.set(values[0])
         self.selected_purchase.set(values[0])
-        # FIXME: Ver que hacer con esta linea
-        # self.opm_id.configure(state=DISABLED)
         self.opm_product.set(values[1])
         self.selected_product.set(values[1])
         self.opm_supplier.set(self.suppliers[int(values[2])])
@@ -360,14 +379,13 @@ class Purchases(Frame):
     
     def edit_purchase(self) -> None:
         try:
+            self.band = False
             self.get_purchase()
             self.products = db_product.get_dict_products_by_supplier(self, find_id(self.suppliers, self.opm_supplier.get()))
         except Exception as err:
             print("[-] ", err)
             messagebox.showinfo("._.", err)
             return
-        
-        self.band = False
     
     def _return(self) -> None:
         self.controller.show_frame("Menu")
@@ -384,7 +402,6 @@ class Purchases(Frame):
         self.tx_date.delete(0, END)
         
     def default(self):
-        # TODO: Actualizar los valores de los productos, proveedores y compras (Pensar cuales son necesarios)
         self.products = {}
         self.purchases = db_purchase.get_id_purchases(self, self.profile)
         self.opm_id.configure(values=self.purchases)
@@ -400,6 +417,7 @@ class Purchases(Frame):
         self.bt_cancel.configure(state=DISABLED)
         self.bt_remove.configure(state=ENABLE)
         self.state(False)
+        self.band = None
     
     def state(self, state: bool) -> None:
         self.opm_id.configure(state=ENABLE if state else DISABLED)

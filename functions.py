@@ -132,3 +132,12 @@ def get_column_from_list(list: list, column: int) -> list:
         list: Columna
     """
     return [row[column] for row in list]
+
+def print_time():
+    """Imprimir la hora actual
+
+    :Example:
+    >>> print_time()
+        23:59:59
+    """
+    print(datetime.now().astimezone(pytz.timezone('America/Mexico_City')).time().strftime("%H:%M:%S"))
