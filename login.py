@@ -10,6 +10,7 @@ from customers import Customers
 from suppliers import Suppliers
 from products import Products
 from purchases import Purchases
+from sales import Sales
 
 class Login(Frame):
     def __init__(self, container, controller, *args, **kwargs):
@@ -70,7 +71,8 @@ class Login(Frame):
                 "Customers": Customers,
                 "Suppliers": Suppliers,
                 "Products": Products,
-                "Purchases": Purchases
+                "Purchases": Purchases,
+                "Sales": Sales
             }
             
             # Recorrer las clases

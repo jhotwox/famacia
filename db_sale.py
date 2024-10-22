@@ -80,11 +80,11 @@ class db_sale:
             print("[-] get_all_sales_by_user: ", err)
             messagebox.showerror("Error", "Error en la consulta")
     
-    def get_id_sales(self, profile: user_class) -> list:
+    def get_id_sales(self) -> list:
         try:
             self.conn = con.conection().open()
             self.cursor = self.conn.cursor()
-            self.sql = f"SELECT id FROM {table} WHERE user_id={profile.get_id()}"
+            self.sql = f"SELECT id FROM {table}"
             self.cursor.execute(self.sql)
             rows = self.cursor.fetchall()
             self.conn.commit()
@@ -111,6 +111,8 @@ class db_sale:
         except Exception as err:
             print("[-] count_detail_sales: ", err)
             messagebox.showerror("Error", "Error en la consulta")
+    
+    
     
     def close(self):
         self.conn.close()

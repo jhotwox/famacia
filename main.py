@@ -22,7 +22,7 @@ class myApp(CTk):
         self.frames["Login"].grid(row=0, column=0, sticky="nsew")
         
         self.show_frame("Login")
-        
+    
     def show_frame(self, page_name) -> None:
         try:
             frame = self.frames[page_name]

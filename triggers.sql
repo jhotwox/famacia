@@ -59,3 +59,5 @@ SELECT supplier_id FROM purchase WHERE id = 2;
 SELECT product.supplier FROM product, detail_purchase WHERE
 product.id = detail_purchase.product_id AND
 detail_purchase.purchase_id = 1;
+
+SELECT DISTINCT category FROM product;

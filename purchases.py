@@ -1,7 +1,7 @@
 from customtkinter import END, CTkButton as Button, CTkEntry as Entry, CTkLabel as Label, DISABLED, NORMAL as ENABLE, CTkFrame as Frame, CTkOptionMenu as OptMenu, StringVar, CTkScrollbar as Scrollbar
 from tkinter import messagebox
 from tkinter.ttk import Treeview
-from functions import entry_empty, find_id, is_numeric, get_column_from_list, get_datetime, print_time
+from functions import entry_empty, find_id, is_numeric, get_datetime, print_time
 from table_style import apply_style
 from db_functions import get_unitary_price_by_id, get_supplier_by_purchase_id
 from purchase import purchase as purchase_class
@@ -11,11 +11,11 @@ from db_detail_purchase import db_detail_purchase
 from datetime import datetime
 
 from db_product import db_product
-from product import product as product_class
+from user import user as user_class
 from db_supplier import db_supplier
 
 class Purchases(Frame):
-    def __init__(self, container, controller, profile: product_class, *args, **kwargs):
+    def __init__(self, container, controller, profile: user_class, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
         
         self.controller = controller
@@ -35,7 +35,6 @@ class Purchases(Frame):
         lb_search_purchase = Label(fr_search, text="ID compra", font=("Calisto MT", 12))
         lb_search_purchase.grid(row=0, column=0, padx=5)
         self.id_purchases = db_purchase.get_id_purchases(self, self.profile)
-        # print("ID Purchases -> ", self.id_purchases)
         self.selected_search_purchase = StringVar(value=self.id_purchases[0] if len(self.id_purchases) > 0 else "No disponible")
         self.selected_search_purchase.trace("w", self.on_selection_search_purchase)
         self.opm_search_purchase = OptMenu(fr_search, values=self.id_purchases, variable=self.selected_search_purchase)
@@ -67,7 +66,6 @@ class Purchases(Frame):
         self.tx_user_id.grid(row=0, column=3, pady=5)
 
         self.suppliers = db_supplier.get_suppliers(self)
-        # print("Suppliers -> ", self.suppliers)
         lb_supplier = Label(fr_entry, text="Proveedor")
         lb_supplier.grid(row=1, column=0, pady=0, sticky="w")
         self.selected_supplier = StringVar(value=next(iter(self.suppliers.values())) if len(self.suppliers) > 0 else "No disponible")
@@ -195,24 +193,17 @@ class Purchases(Frame):
             return
         
         if self.opm_supplier.get() != "No disponible":
-            print("*-"*20)
-            print("on_selection_supplier")
-            print_time()
-            print("Supplier -> ", self.opm_supplier.get())
-            print("Suppliers -> ", self.suppliers)
+            # print("*-"*20)
+            # print("on_selection_supplier")
+            # print_time()
+            # print("Supplier -> ", self.opm_supplier.get())
+            # print("Suppliers -> ", self.suppliers)
             self.products = db_product.get_dict_products_by_supplier(self, find_id(self.suppliers, self.opm_supplier.get()))
-            print("products -> ", self.products)
-            print("*-"*20)
+            # print("products -> ", self.products)
+            # print("*-"*20)
             self.opm_product.configure(values=list(self.products.values()))
             self.opm_product.set(next(iter(self.products.values())) if len(self.products) > 0 else "No disponible")
             
-        # if self.opm_product.get() != "No disponible":
-        #     self.tx_unitary_price.delete(0, END)
-        #     unitary_price = get_unitary_price_by_id(find_id(self.products, self.opm_product.get()))
-        #     self.tx_unitary_price.insert(0, unitary_price)
-        # else:
-        #     self.tx_unitary_price.delete(0, END)
-    
     def on_selection_product(self, *args):
         if self.band == False:
             return

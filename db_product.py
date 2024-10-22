@@ -139,5 +139,69 @@ class db_product:
             print("[-] get_dict_products_by_supplier: ", err)
             messagebox.showerror("Error", "Error en la consulta")
     
+    def get_dict_products_by_category(self, category: str) -> dict:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT id, name FROM {table} where category='{category}'"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchall()
+            self.conn.commit()
+            self.conn.close()
+            if rows is None:
+                raise Exception("No se encontraron productos")
+            return {item[0]: item[1] for item in rows}
+        except Exception as err:
+            print("[-] get_dict_products_by_category: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+    
+    def get_category(self) -> list:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT DISTINCT category FROM {table}"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchall()
+            self.conn.commit()
+            self.conn.close()
+            if rows is None:
+                raise Exception("No se encontraron categorias")
+            return [item[0] for item in rows]
+        except Exception as err:
+            print("[-] get_category: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+    
+    def unitary_price_and_discount(self, product_id: int) -> list:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT sale_price, discount_sale FROM {table} WHERE id={product_id}"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchone()
+            self.conn.commit()
+            self.conn.close()
+            if rows is None:
+                raise Exception("No se encontraron productos")
+            return rows
+        except Exception as err:
+            print("[-] unitary_price_and_discount: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+    
+    def get_stock_by_id(self, product_id: int) -> int:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT stock FROM {table} WHERE id={product_id}"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchone()
+            self.conn.commit()
+            self.conn.close()
+            if rows is None:
+                raise Exception("No se encontraron productos")
+            return rows[0]
+        except Exception as err:
+            print("[-] get_stock_by_id: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+    
     def close(self):
         self.conn.close()
