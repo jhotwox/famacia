@@ -112,7 +112,21 @@ class db_sale:
             print("[-] count_detail_sales: ", err)
             messagebox.showerror("Error", "Error en la consulta")
     
-    
+    def get_customer_by_sale_id(self, sale_id: int) -> str:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT customer.name, customer.points FROM sale, customer WHERE sale.customer_id=customer.id AND sale.id={sale_id}"
+            self.cursor.execute(self.sql)
+            row = self.cursor.fetchone()
+            self.conn.commit()
+            self.conn.close()
+            if row is None:
+                raise Exception("No se encontro la venta o el cliente")
+            return row
+        except Exception as err:
+            print("[-] get_customer_by_sale_id: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
     
     def close(self):
         self.conn.close()

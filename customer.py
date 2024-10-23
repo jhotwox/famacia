@@ -20,3 +20,6 @@ class customer:
     
     def get_adress(self):
         return self.adress
+    
+    def set_points(self, points: int):
+        self.points = points

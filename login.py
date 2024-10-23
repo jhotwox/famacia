@@ -66,7 +66,6 @@ class Login(Frame):
         if self.user is not None:
             windows = {
                 "Menu": Menu,
-                "Table": Table,
                 "Users": Users,
                 "Customers": Customers,
                 "Suppliers": Suppliers,

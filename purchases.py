@@ -376,7 +376,6 @@ class Purchases(Frame):
         except Exception as err:
             print("[-] ", err)
             messagebox.showinfo("._.", err)
-            return
     
     def _return(self) -> None:
         self.controller.show_frame("Menu")

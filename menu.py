@@ -62,7 +62,6 @@ class Menu(Frame):
         self.controller.show_frame("Sales")
         
     def open_sales(self) -> None:
-        self.controller.show_frame("Table")
         return 
         
     def open_suppliers(self) -> None:

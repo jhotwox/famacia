@@ -83,6 +83,24 @@ class db_customer:
             print("[-] get_all_customers: ", err)
             messagebox.showerror("Error", "Error en la consulta")
     
+    def get_customer_by_id(self, id: int) -> customer_class:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT id, points, name, phone, adress FROM {table} WHERE id={id}"
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchone()
+            self.conn.commit()
+            self.conn.close()
+            rows = list(rows)
+            print("row customer -> ", rows)
+            if rows is None:
+                raise Exception("No se encontro el cliente")
+            return customer_class(int(rows[0]), int(rows[1]), rows[2], rows[3], rows[4])
+        except Exception as err:
+            print("[-] get_customer_by_id: ", err)
+            raise Exception("Error al obtener cliente: " , err)
+    
     def get_dict_customers(self) -> dict:
         try:
             self.conn = con.conection().open()

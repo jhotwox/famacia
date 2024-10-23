@@ -75,16 +75,13 @@ class db_detail_sale:
             self.conn = con.conection().open()
             self.cursor = self.conn.cursor()
             
-            # FIXME: Actualizar consulta
             self.sql = f"""
-            SELECT purchase.id, product.name, product.supplier, purchase.date, detail_purchase.unitary_price, detail_purchase.quantity, (detail_purchase.unitary_price * detail_purchase.quantity) AS total FROM
-            detail_purchase, purchase, product, user WHERE
-            detail_purchase.purchase_id = purchase.id AND
-            detail_purchase.product_id = product.id AND
-            user.id = purchase.user_id AND
-            user.id = {user_id}
+            SELECT sale.id, detail_sale.quantity, product.name, detail_sale.unitary_price, sale.discount, (detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) AS subtotal, ((detail_sale.unitary_price * detail_sale.quantity* (1 - sale.discount*0.01)) * 0.16) AS iva, ((detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) * 1.16) AS total
+            FROM detail_sale, sale, product
+            WHERE detail_sale.sale_id = sale.id AND detail_sale.product_id = product.id AND sale.id = {user_id}
             """
             self.cursor.execute(self.sql)
+            
             rows = self.cursor.fetchall()
             self.conn.commit()
             self.conn.close()
@@ -94,6 +91,27 @@ class db_detail_sale:
         except Exception as err:
             print("[-] get_detail_sales_by_user_id: ", err)
             messagebox.showerror("Error", "Error en la consulta")
+            
+    # def get_detail_sales_for_table_by_id(self) -> list:
+    #     try:
+    #         self.conn = con.conection().open()
+    #         self.cursor = self.conn.cursor()
+            
+    #         # FIXME: Actualizar consulta
+    #         ("ID", "Cantidad", "Nombre", "Precio u.", "Descuento", "Subtotal", "IVA", "Importe")
+    #         self.sql = f"""
+    #         SELECT sale.id, detail_sale.quantity, product.name, detail_sale.unitary_price, sale.discount, (detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) AS subtotal, ((detail_sale.unitary_price * detail_sale.quantity* (1 - sale.discount*0.01)) * 0.16) AS iva, ((detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) * 1.16) AS total FROM detail_sale, sale, product WHERE detail_sale.sale_id = sale.id AND detail_sale.product_id = product.id AND sale.id = {user_id}
+    #         """
+    #         self.cursor.execute(self.sql)
+    #         rows = self.cursor.fetchall()
+    #         self.conn.commit()
+    #         self.conn.close()
+    #         if rows is None:
+    #             raise Exception("No se encontraron detalles venta")
+    #         return rows
+    #     except Exception as err:
+    #         print("[-] get_detail_sales_by_user_id: ", err)
+    #         messagebox.showerror("Error", "Error en la consulta")
             
     def search_bool(self, detail_sale: detail_sale_class) -> bool:
         try:

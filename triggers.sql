@@ -61,3 +61,13 @@ product.id = detail_purchase.product_id AND
 detail_purchase.purchase_id = 1;
 
 SELECT DISTINCT category FROM product;
+
+("ID", "Cantidad", "Nombre", "Precio u.", "Descuento", "Subtotal", "IVA", "Importe")
+
+SELECT sale.id, detail_sale.quantity, product.name, detail_sale.unitary_price, sale.discount, (detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) AS subtotal, ((detail_sale.unitary_price * detail_sale.quantity* (1 - sale.discount*0.01)) * 0.16) AS iva, ((detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) * 1.16) AS total FROM detail_sale, sale, product WHERE detail_sale.sale_id = sale.id AND detail_sale.product_id = product.id WHERE sale.id = 1;
+
+SELECT purchase.id, product.name, product.supplier, purchase.date, detail_purchase.unitary_price, detail_purchase.quantity, (detail_purchase.unitary_price * detail_purchase.quantity) AS total FROM
+            detail_purchase, purchase, product, user WHERE
+            detail_purchase.purchase_id = purchase.id AND
+            detail_purchase.product_id = product.id AND
+            user.id = purchase.user_id

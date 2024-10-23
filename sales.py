@@ -1,14 +1,13 @@
 from customtkinter import END, CTkButton as Button, CTkEntry as Entry, CTkLabel as Label, DISABLED, NORMAL as ENABLE, CTkFrame as Frame, CTkOptionMenu as OptMenu, StringVar, CTkScrollbar as Scrollbar
 from tkinter import messagebox
 from tkinter.ttk import Treeview
-from functions import entry_empty, find_id, is_numeric, get_datetime, print_time
+from functions import entry_empty, find_id, get_datetime, print_time
 from table_style import apply_style
 from db_functions import get_unitary_price_by_id, get_supplier_by_purchase_id
 from sale import sale as sale_class
 from detail_sale import detail_sale as detail_sale_class
 from db_sale import db_sale
 from db_detail_sale import db_detail_sale
-from datetime import datetime
 
 from db_product import db_product
 from user import user as user_class
@@ -30,6 +29,7 @@ class Sales(Frame):
         self.band = None
         self.search_band = False
         self.new_sale_state = 0 # 0: "Nuevo", 1: productos == 0, 2: "Pagar" (productos >= 1), 3: "Comprar"
+        self.discount = False
         # Products no tiene nada que ver con opm_product
         
         self.products = db_product.get_dict_products(self)
@@ -172,13 +172,11 @@ class Sales(Frame):
         products = db_product.get_dict_products_by_category(self, self.selected_category.get())
         self.opm_product.configure(values=list(products.values()))
         self.opm_product.set(next(iter(products.values())) if len(products) > 0 else "No disponible")
-        return
-    
-    def on_selection_sale(self, *args):
-        return
-    
+
     def on_selection_customer(self, *args):
-        # print("Selected customer -> ", self.selected_customer.get())
+        if self.search_band == self.EDITAR:
+            return
+        
         if self.selected_customer.get() != "" and self.selected_customer.get() != "No disponible":
             self.tx_points.configure(state=ENABLE)
             self.tx_points.delete(0, END)
@@ -186,14 +184,74 @@ class Sales(Frame):
             points = db_customer.get_points_by_id(self, customer_id)
             self.tx_points.insert(0, points)
             self.tx_points.configure(state=DISABLED)
+            # Flag discount
+            self.discount = points >= 50
     
     # region search
     def search_sale(self):
+        if (self.selected_search_sale.get() == "" or self.selected_search_sale.get() == "No disponible"):
+            messagebox.showwarning("Advertencia", "No se ha seleccionado ninguna venta a buscar")
+            return
+        
+        (name, points) = db_sale.get_customer_by_sale_id(self, int(self.selected_search_sale.get()))
+        print("sale_id -> ", self.selected_search_sale.get())
+        print("customer_name -> ", name)
+        print("points -> ", points)
+        self.opm_id.configure(state=ENABLE)
+        self.opm_customer.configure(state=ENABLE)
+        self.tx_points.configure(state=ENABLE)
+        
         self.search_band = True
-        return
+        self.opm_id.set(self.selected_search_sale.get())
+        self.selected_sale.set(self.selected_search_sale.get())
+        self.opm_customer.set(name)
+        self.selected_customer.set(name)
+        self.tx_points.delete(0, END)
+        self.tx_points.insert(0, points)
+        
+        self.opm_id.configure(state=DISABLED)
+        self.opm_customer.configure(state=DISABLED)
+        self.tx_points.configure(state=DISABLED)
+        
+        rows = db_detail_sale.get_detail_sales_by_user_id(self, int(self.selected_search_sale.get()))
+        self.clear_sale()
+        self.insert_table(rows)
+        self.insert_total()
+        self.bt_search.configure(state=DISABLED)
+        self.bt_cancel.configure(state=ENABLE)
     
     # region add_product
+    def add_product_edit(self):
+        try:
+            table_id = self.search_name_table(self.selected_product.get())
+            if table_id is not None:
+                stock = db_product.get_stock_by_id(self, find_id(self.products, self.selected_product.get()))
+                if int(self.tx_quantity.get()) > stock:
+                    raise Exception(f"No hay suficiente stock de este producto\nStock: {stock}")
+                
+                unitary_price = float(self.table.item(table_id, "values")[3])
+                discount = float(self.table.item(table_id, "values")[4].replace("%", ""))
+                discount = discount*0.01
+                subtotal = round((unitary_price * int(self.tx_quantity.get())) * (1 - discount), 2)
+                self.table.set(table_id, column="Cantidad", value=self.tx_quantity.get())
+                self.table.set(table_id, column="Subtotal", value=subtotal)
+                self.table.set(table_id, column="IVA", value=round(subtotal * 0.16, 2))
+                self.table.set(table_id, column="Importe", value=round(subtotal * 1.16, 2))
+                self.delete_last_row()
+                self.insert_total()
+        except Exception as err:
+            print("[-] add_product_edit: ", err)
+            raise Exception(err)
+        finally:
+            self.bt_add.configure(text="Añadir producto")
+            self.bt_remove.configure(state=ENABLE)
+            self.bt_new.configure(state=ENABLE)
+            self.opm_category.configure(state=ENABLE)
+            self.opm_product.configure(state=ENABLE)
+            self.band = None
+    
     def add_product(self):
+        # Validate
         try:
             self.validate_new_product()
         except Exception as err:
@@ -202,10 +260,17 @@ class Sales(Frame):
             return
         
         try:
-            # ("ID✅", "Cantidad✅", "Nombre✅", "Precio u.❌", "Descuento❌", "Subtotal✅", "IVA✅", "Importe✅")
+            # EDITAR
+            if self.band == self.EDITAR:
+                self.add_product_edit()
+                return
+            
+            # AÑADIR
             # Obtener información que falta
             product_id = find_id(self.products, self.selected_product.get())
             (unitary_price, discount) = db_product.unitary_price_and_discount(self, product_id)
+            if self.discount:
+                discount = 50
             percentage = str(discount)+"%"
             
             # Ya existe el producto en la tabla
@@ -218,11 +283,12 @@ class Sales(Frame):
                 if new_quantity > stock:
                     raise Exception(f"No hay suficiente stock de este producto\nStock: {stock}")
                 
-                subtotal = (unitary_price * new_quantity) * (1 - discount)
+                discount = discount*0.01
+                subtotal = round((unitary_price * new_quantity) * (1 - discount), 2)
                 self.table.set(table_id, column="Cantidad", value=new_quantity)
                 self.table.set(table_id, column="Subtotal", value=subtotal)
-                self.table.set(table_id, column="IVA", value=subtotal * 0.16)
-                self.table.set(table_id, column="Importe", value=subtotal * 1.16)
+                self.table.set(table_id, column="IVA", value=round(subtotal * 0.16, 2))
+                self.table.set(table_id, column="Importe", value=round(subtotal * 1.16, 2))
                 self.delete_last_row()
                 self.insert_total()
                 return
@@ -232,9 +298,9 @@ class Sales(Frame):
             quantity = int(self.tx_quantity.get())
             name = self.selected_product.get()
             discount = discount*0.01
-            subtotal = (unitary_price * quantity)*(1-discount)
-            iva = subtotal * 0.16
-            amount = subtotal + iva
+            subtotal = round((unitary_price * quantity)*(1-discount), 2)
+            iva = round(subtotal * 0.16, 2)
+            amount = round(subtotal + iva, 2)
             
             product = [id, quantity, name, unitary_price, percentage, subtotal, iva, amount]
             if self.new_sale_state == 2:
@@ -252,11 +318,13 @@ class Sales(Frame):
     
     # region new_sale
     def new_sale(self):
-        if self.new_sale_state == 0:
+        if self.new_sale_state == 0: # Nuevo
             self.new_sale_new()
         elif self.new_sale_state == 1:
+            messagebox.showwarning("Advertencia OoO", "No hay productos en la lista")
+        elif self.new_sale_state == 2: # Pagar
             self.new_sale_pay()
-        elif self.new_sale_state == 3:
+        elif self.new_sale_state == 3: # Comprar
             self.new_sale_buy()
     
     def new_sale_new(self):
@@ -283,7 +351,7 @@ class Sales(Frame):
             return
         
         self.state(False)
-        self.new_sale_state = 2
+        self.new_sale_state = 3
         self.bt_new.configure(text="Comprar")
         self.bt_clean.configure(text="Cancelar")
         
@@ -291,48 +359,184 @@ class Sales(Frame):
         self.tx_pay.configure(state=ENABLE)
         self.bt_add.configure(state=DISABLED)
         self.bt_edit.configure(state=DISABLED)
-        # clean y return siempre activos    
+        # clean y return siempre activos
     
     def new_sale_buy(self):
-        if(self.tx_pay.get() == ""):
-            messagebox.showerror("Error", "Ingrese el pago")
+        # Validate
+        try:
+            self.validate_buy()
+        except Exception as err:
+            print("[-]")
+            messagebox.showwarning("Error >.<", err)
             return
-        # Comprobar pago con total
-        # Crear venta
-        # Crear detalle venta
-        # Actualizar puntos
-        # Actualizar stock
-
-        # COMPROBAR QUE SE PUEDE RESCATAR DE LA IA
-        # self.state(False)
-        # self.new_sale_state = 0
-        # self.bt_new.configure(text="Nueva venta")
-        # self.bt_clean.configure(text="Limpiar")
         
-        # # States
-        # self.bt_search.configure(state=ENABLE)
-        # self.bt_add.configure(state=DISABLED)
-        # self.bt_edit.configure(state=DISABLED)
-        # self.bt_remove.configure(state=DISABLED)
-        # self.bt_cancel.configure(state=ENABLE)
-        # self.bt_clean.configure(state=ENABLE)
-        # self.bt_return.configure(state=ENABLE)
+        # Comprobar que pago sea suficiente
+        total = self.get_total()
+        change = float(self.tx_pay.get()) - total
+        if change < 0:
+            messagebox.showerror("Error", "El pago no es suficiente\n Faltan: $"+str(-change))
+            return
+        
+        self.state(False)
+        
+        try:
+            # Crear venta
+            sale = sale_class(
+                id=int(self.selected_sale.get()),
+                customer_id=find_id(self.customers, self.selected_customer.get()),
+                total=total,
+                date=get_datetime(),
+                discount=50 if self.discount else 0
+            )
+            db_sale.save(self, sale)
+            
+            # Obtener todas las filas de la tabla
+            rows = self.obtain_rows_table()
+            
+            # Crear detalle venta
+            print(rows)
+            self.save_detail_sale(rows)
+            
+            # Actualizar puntos
+            points = 0
+            print("Discount -> ", self.discount)
+            if self.discount == False:
+                points = self.calculate_points(total)
+            
+            customer_id = find_id(self.customers, self.selected_customer.get())
+            print("customer_id -> ", customer_id)
+            customer = db_customer.get_customer_by_id(self, customer_id)
+            if self.discount:
+                customer.set_points(0)
+            else:
+                customer.set_points(customer.get_points() + points)
+            
+            print("customer points -> ", customer.get_points())
+            db_customer.edit(self, customer)
+            
+            # Actualizar banderas y estados (Cambiar el estado aqui para que no cambie el funcionamiento del boton clean)
+            messagebox.showinfo("Venta exitosa", "Cambio: $"+str(change))
+            self.new_sale_state = 0
+            self.discount = False
+            self.default()
+        
+        except Exception as err:
+            print("[-] new_sale_buy: ", err)
+            messagebox.showerror("Error >_<", err)
+    
+    def get_sale(self) -> None:
+        selected = self.table.focus()
+        if selected is None or selected == "":
+            raise Exception("No se encontro el producto")
+        
+        values = self.table.item(selected, "values")
+        
+        if values[-2] == "Total":
+            messagebox.showinfo(">_<", "No se puede editar el total")
+            return
+        
+        self.state(False)
+        self.opm_product.configure(state=ENABLE)
+        self.tx_quantity.configure(state=ENABLE)
+        
+        self.opm_product.set(values[2])
+        self.selected_product.set(values[2])
+        self.tx_quantity.delete(0, END)
+        self.tx_quantity.insert(0, values[1])
+        
+        self.opm_product.configure(state=DISABLED)
     
     # region edit
     def edit_product(self):
-        return
+        try:
+            self.get_sale()
+            self.band = self.EDITAR
+            self.bt_add.configure(text="Guardar")
+            self.bt_remove.configure(state=DISABLED)
+            self.bt_new.configure(state=DISABLED)
+        except Exception as err:
+            print("[-] edit_product: ", err)
+            messagebox.showerror("Error", "No se logro editar el producto")
     
     # region remove
     def remove_product(self):
-        return
+        if self.search_band == False:
+            try:
+                selected = self.table.focus()
+                if selected is None or selected == "":
+                    messagebox.showinfo(">_<", "No se selecciono un producto")
+                    return
+                
+                values = self.table.item(selected, "values")
+                if values[-2] == "Total":
+                    messagebox.showinfo(">_<", "No se puede eliminar el total")
+                    return
+                
+                self.table.delete(selected)
+                # Update total
+                self.delete_last_row()
+                if self.table.get_children():
+                    self.insert_total()
+                else:
+                    self.new_sale_state = 1
+            except Exception as err:
+                print("[-] remove_product: ", err)
+                messagebox.showerror("Error", "No se logro eliminar el producto")
     
     # region cancel
     def cancel_sale(self):
-        return
+        try:
+            db_sale.remove(self, int(self.selected_search_sale.get()))
+            messagebox.showinfo(">u<", "Venta cancelada")
+            self.default()
+        except Exception as err:
+            print("[-] cancel_sale: ", err)
+            messagebox.showerror("Error", "No se logro cancelar la venta")
+    
+    def obtain_rows_table(self) -> list:
+        rows = []
+        for item in self.table.get_children():
+            rows.append(self.table.item(item)["values"])
+        return rows[:-1]
+    
+    def save_detail_sale(self, rows: list) -> None:
+        try:
+            for row in rows:
+                detail_sale = detail_sale_class(
+                    sale_id=row[0],
+                    product_id=find_id(self.products, row[2]),
+                    quantity=row[1],
+                    unitary_price=row[3],
+                )
+                db_detail_sale.save(self, detail_sale)
+        except Exception as err:
+            print("[-] save_detail_sale: ", err)
+            raise Exception("Error al guardar el detalle de la venta")
+    
+    def calculate_points(self, total: float) -> int:
+        points = int(total // 500)
+        return points
     
     # region default
-    def default(self):
+    def default(self) -> None:
+        if self.new_sale_state == 3:
+            self.new_sale_state = 2
+            self.state(True)
+            self.bt_new.configure(text="Pagar")
+            self.bt_clean.configure(text="Limpiar")
+            self.tx_pay.delete(0, END)
+            # States
+            self.opm_id.configure(state=DISABLED)
+            self.bt_search.configure(state=DISABLED)
+            self.tx_pay.configure(state=DISABLED)
+            self.bt_add.configure(state=ENABLE)
+            self.bt_edit.configure(state=ENABLE)
+            self.bt_remove.configure(state=ENABLE)
+            self.bt_cancel.configure(state=DISABLED)
+            return
+        
         self.id_sales = db_sale.get_id_sales(self)
+        self.opm_search_sale.configure(values=self.id_sales)
         self.state(True)
         self.clear_sale()
         self.clear_table()
@@ -347,6 +551,7 @@ class Sales(Frame):
         self.bt_return.configure(state=ENABLE)
         self.bt_new.configure(text="Nueva venta")
         self.bt_add.configure(text="Añadir producto")
+        self.bt_clean.configure(text="Limpiar")
         self.state(False)
         self.band = None
         self.new_sale_state = 0
@@ -374,10 +579,8 @@ class Sales(Frame):
         self.tx_points.delete(0, END)
         self.tx_pay.delete(0, END)
     
-    def clear_table(self):
+    def clear_table(self) -> None:
         self.table.delete(*self.table.get_children())
-        # for i in self.table.get_children():
-        #     self.table.delete(i)
     
     def insert_table(self, data: list) -> None:
         for i, row in enumerate(data):
@@ -389,13 +592,16 @@ class Sales(Frame):
     def delete_last_row(self) -> None:
         self.table.delete(self.table.get_children()[-1])
     
-    def calculate_total(self):
+    def calculate_total(self) -> float:
         total = 0
         for row in self.table.get_children():
             total += float(self.table.item(row)["values"][-1])
         return total
     
-    def insert_total(self):
+    def get_total(self) -> float:
+        return float(self.table.item(self.table.get_children()[-1], "values")[-1])
+    
+    def insert_total(self) -> None:
         total = self.calculate_total()
         self.table.insert("", "end", values=["", "", "", "", "", "", "Total", total])
     
@@ -407,7 +613,7 @@ class Sales(Frame):
         return None
     
     # region validate
-    def validate_new_product(self):
+    def validate_new_product(self) -> None:
         # Empty
         entry_empty(self.tx_quantity, "Cantidad")
         self.tx_points.configure(state=ENABLE)
@@ -447,5 +653,14 @@ class Sales(Frame):
         if int(self.tx_quantity.get()) > stock:
             raise Exception(f"No hay suficiente stock de este producto\nStock: {stock}")
 
-    def _return(self):
+    def _return(self) -> None:
         self.controller.show_frame("Menu")
+        
+    def validate_buy(self) -> None:
+        if(self.tx_pay.get() == ""):
+            raise Exception("Ingrese el pago")
+        
+        try:
+            float(self.tx_pay.get())
+        except:
+            raise Exception("El pago debe ser un número")
