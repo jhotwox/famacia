@@ -3,7 +3,6 @@ from tkinter import messagebox
 from tkinter.ttk import Treeview
 from functions import entry_empty, find_id, get_datetime, print_time
 from table_style import apply_style
-from db_functions import get_unitary_price_by_id, get_supplier_by_purchase_id
 from sale import sale as sale_class
 from detail_sale import detail_sale as detail_sale_class
 from db_sale import db_sale
@@ -17,22 +16,19 @@ class Sales(Frame):
     def __init__(self, container, controller, profile: user_class, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
         
-        # Constants
-        self.EDITAR = 0
-        self.NUEVO = 1
-        
         #  Global parameters
         self.controller = controller
         self.profile = profile
         
         # Flags
-        self.band = None
+        self.band: int = 1
         self.search_band = False
         self.new_sale_state = 0 # 0: "Nuevo", 1: productos == 0, 2: "Pagar" (productos >= 1), 3: "Comprar"
         self.discount = False
-        # Products no tiene nada que ver con opm_product
+        self.edit_sale_state = 0 # 0: Se presiono el boton "Guardar" 1: Se presiono el boton "Confirmar" 
         
         self.products = db_product.get_dict_products(self)
+        self.query_list = list()
         
         fr_search = Frame(self)
         fr_search.grid(row=0, column=0, sticky="nsw", padx=10, pady=10)
@@ -67,7 +63,7 @@ class Sales(Frame):
         lb_id = Label(fr_entry, text="ID")
         lb_id.grid(row=0, column=2, pady=0, sticky="w")
         self.selected_sale = StringVar(value=self.sales[0] if len(self.sales) > 0 else "No disponible")
-        self.selected_sale.trace("w", self.on_selection_sale)
+        # self.selected_sale.trace("w", self.on_selection_sale)
         self.opm_id = OptMenu(fr_entry, values=self.sales, variable=self.selected_sale)
         self.opm_id.grid(row=0, column=3, pady=5)
         
@@ -166,7 +162,7 @@ class Sales(Frame):
     
     # region on_selection
     def on_selection_category(self, *args):
-        if self.band == self.EDITAR:
+        if self.band == 0:
             return
         
         products = db_product.get_dict_products_by_category(self, self.selected_category.get())
@@ -174,18 +170,22 @@ class Sales(Frame):
         self.opm_product.set(next(iter(products.values())) if len(products) > 0 else "No disponible")
 
     def on_selection_customer(self, *args):
-        if self.search_band == self.EDITAR:
+        # if self.search_band == 1:
+            # print("[~]on_selection_customer omited: search_band -> ", self.search_band)
+            # return
+        
+        if self.selected_customer.get() == "" or self.selected_customer.get() == "No disponible":
+            # print("[~]on_selection_customer omited: customer value: -> ", self.selected_customer.get())
             return
         
-        if self.selected_customer.get() != "" and self.selected_customer.get() != "No disponible":
-            self.tx_points.configure(state=ENABLE)
-            self.tx_points.delete(0, END)
-            customer_id = find_id(self.customers, self.selected_customer.get())
-            points = db_customer.get_points_by_id(self, customer_id)
-            self.tx_points.insert(0, points)
-            self.tx_points.configure(state=DISABLED)
-            # Flag discount
-            self.discount = points >= 50
+        self.tx_points.configure(state=ENABLE)
+        self.tx_points.delete(0, END)
+        customer_id = find_id(self.customers, self.selected_customer.get())
+        points = db_customer.get_points_by_id(self, customer_id)
+        self.tx_points.insert(0, points)
+        self.tx_points.configure(state=DISABLED)
+        # Flag discount
+        self.discount = points >= 50
     
     # region search
     def search_sale(self):
@@ -193,31 +193,42 @@ class Sales(Frame):
             messagebox.showwarning("Advertencia", "No se ha seleccionado ninguna venta a buscar")
             return
         
+        self.search_band = True
+        self.clear_sale()
+        
         (name, points) = db_sale.get_customer_by_sale_id(self, int(self.selected_search_sale.get()))
-        print("sale_id -> ", self.selected_search_sale.get())
-        print("customer_name -> ", name)
-        print("points -> ", points)
+        # print("sale_id -> ", self.selected_search_sale.get())
+        # print("customer_name -> ", name)
+        # print("points -> ", points)
         self.opm_id.configure(state=ENABLE)
         self.opm_customer.configure(state=ENABLE)
-        self.tx_points.configure(state=ENABLE)
+        # self.tx_points.configure(state=ENABLE)
         
-        self.search_band = True
         self.opm_id.set(self.selected_search_sale.get())
         self.selected_sale.set(self.selected_search_sale.get())
         self.opm_customer.set(name)
         self.selected_customer.set(name)
-        self.tx_points.delete(0, END)
-        self.tx_points.insert(0, points)
+        # self.tx_points.delete(0, END)
+        # self.tx_points.insert(0, points)
         
         self.opm_id.configure(state=DISABLED)
         self.opm_customer.configure(state=DISABLED)
-        self.tx_points.configure(state=DISABLED)
+        # self.tx_points.configure(state=DISABLED)
         
         rows = db_detail_sale.get_detail_sales_by_user_id(self, int(self.selected_search_sale.get()))
-        self.clear_sale()
         self.insert_table(rows)
         self.insert_total()
+        
+        # States
+        self.opm_category.configure(state=ENABLE)
+        self.opm_product.configure(state=ENABLE)
+        self.tx_quantity.configure(state=ENABLE)
+        
         self.bt_search.configure(state=DISABLED)
+        self.bt_add.configure(state=ENABLE)
+        self.bt_new.configure(text="Guardar")
+        self.bt_edit.configure(state=ENABLE)
+        self.bt_remove.configure(state=ENABLE)
         self.bt_cancel.configure(state=ENABLE)
     
     # region add_product
@@ -225,7 +236,8 @@ class Sales(Frame):
         try:
             table_id = self.search_name_table(self.selected_product.get())
             if table_id is not None:
-                stock = db_product.get_stock_by_id(self, find_id(self.products, self.selected_product.get()))
+                product_id = find_id(self.products, self.selected_product.get())
+                stock = db_product.get_stock_by_id(self, product_id)
                 if int(self.tx_quantity.get()) > stock:
                     raise Exception(f"No hay suficiente stock de este producto\nStock: {stock}")
                 
@@ -239,6 +251,17 @@ class Sales(Frame):
                 self.table.set(table_id, column="Importe", value=round(subtotal * 1.16, 2))
                 self.delete_last_row()
                 self.insert_total()
+                
+                # Se esta editando un producto que existe
+                if self.search_band == True:
+                    detail_product = detail_sale_class(
+                        sale_id=int(self.selected_sale.get()),
+                        product_id=product_id,
+                        quantity=int(self.tx_quantity.get()),
+                        unitary_price=unitary_price
+                    )
+                    self.query_list.append(["EDIT", detail_product])
+        
         except Exception as err:
             print("[-] add_product_edit: ", err)
             raise Exception(err)
@@ -248,9 +271,15 @@ class Sales(Frame):
             self.bt_new.configure(state=ENABLE)
             self.opm_category.configure(state=ENABLE)
             self.opm_product.configure(state=ENABLE)
-            self.band = None
+            self.band = 1
     
     def add_product(self):
+        # Give access to "cajero" profile
+        if self.search_band == True:
+            if self.controller.shared_data["VALIDATE"] == False and self.profile.get_profile() == "cajero":
+                self.controller.show_frame("Login_Manager")
+                return
+        
         # Validate
         try:
             self.validate_new_product()
@@ -260,24 +289,40 @@ class Sales(Frame):
             return
         
         try:
-            # EDITAR
-            if self.band == self.EDITAR:
+        # EDITAR
+            if self.band == 0:
                 self.add_product_edit()
                 return
-            
-            # AÑADIR
-            # Obtener información que falta
+        except Exception as err:
+            print("[-] add_product edit: ", err)
+            messagebox.showwarning("Error >_<", err)
+            return
+
+        try:
+        # AÑADIR
+            # Obtener información que falta y descuento
             product_id = find_id(self.products, self.selected_product.get())
             (unitary_price, discount) = db_product.unitary_price_and_discount(self, product_id)
             if self.discount:
                 discount = 50
+            if self.search_band == True:
+                if not self.table_is_empty():
+                    discount = self.table.item(self.table.get_children()[0], "values")[4]
+                    discount = int(discount.replace("%", ""))
+                    print("Discount from table -> ", discount)
             percentage = str(discount)+"%"
+        except Exception as err:
+            print("[-] add_product calculate discount: ", err)
+            messagebox.showwarning("Error >_<", err)
+            return
             
+        try:
             # Ya existe el producto en la tabla
             table_id = self.search_name_table(self.selected_product.get())
             if table_id is not None:
                 current_quantity = int(self.table.item(table_id, "values")[1])
                 new_quantity = current_quantity + int(self.tx_quantity.get())
+                
                 # Validar stock disponible
                 stock = db_product.get_stock_by_id(self, product_id)
                 if new_quantity > stock:
@@ -291,8 +336,23 @@ class Sales(Frame):
                 self.table.set(table_id, column="Importe", value=round(subtotal * 1.16, 2))
                 self.delete_last_row()
                 self.insert_total()
+                
+                # Se añadio stock a un producto que ya existe
+                if self.search_band == True:
+                    detail_product = detail_sale_class(
+                        sale_id=int(self.selected_sale.get()),
+                        product_id=product_id,
+                        quantity=new_quantity,
+                        unitary_price=unitary_price
+                    )
+                    self.query_list.append(["EDIT", detail_product])
                 return
-            
+        except Exception as err:
+            print("[-] add_product it's already on the table: ", err)
+            messagebox.showwarning("Error >_<", err)
+            return
+        
+        try:
             # No existe el producto en la tabla
             id = int(self.selected_sale.get())
             quantity = int(self.tx_quantity.get())
@@ -302,22 +362,59 @@ class Sales(Frame):
             iva = round(subtotal * 0.16, 2)
             amount = round(subtotal + iva, 2)
             
+            # product row
             product = [id, quantity, name, unitary_price, percentage, subtotal, iva, amount]
-            if self.new_sale_state == 2:
+            
+            # Delete total row if exists
+            # if self.new_sale_state == 2 or self.sea:
+            if not self.table_is_empty():
                 self.delete_last_row()
+            
+            # Insert new row
+            print("After insert new row")
             self.insert_new_row(product)
+            print("Before insert new row")
             self.insert_total()
+            print("Before insert total")
+            
+            if self.search_band == True:
+                detail_product = detail_sale_class(
+                    sale_id=id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    unitary_price=unitary_price
+                )
+                self.query_list.append(["SAVE", detail_product])
+            
+            # If table is empty update state
             if self.new_sale_state == 1:
                 self.new_sale_state = 2
                 self.opm_customer.configure(state=DISABLED)
-            
         except Exception as err:
-            print("[-] add_product: ", err)
+            print("[-] add_product it's not in the table: ", err)
             messagebox.showwarning("Error >_<", err)
-            return
     
     # region new_sale
     def new_sale(self):
+        # Boton guardar compra
+        if self.search_band == True:
+            # Give access to "cajero" profile
+            if self.controller.shared_data["VALIDATE"] == False and self.profile.get_profile() == "cajero":
+                self.controller.show_frame("Login_Manager")
+                return
+            
+            print("edit_sale_state: ", self.edit_sale_state)
+            if self.edit_sale_state == 0:
+                self.bt_new.configure(text="Confirmar")
+                self.state(False)
+                self.opm_customer.configure(state=ENABLE)
+                self.edit_sale_state = 1
+            elif self.edit_sale_state == 1:
+                self.edit_existing_sale()
+            else:
+                print("[-] Estado de edición desconocido: ", self.edit_sale_state, "Posibles valores: 0 - 2")
+            return
+        
         if self.new_sale_state == 0: # Nuevo
             self.new_sale_new()
         elif self.new_sale_state == 1:
@@ -359,7 +456,7 @@ class Sales(Frame):
         self.tx_pay.configure(state=ENABLE)
         self.bt_add.configure(state=DISABLED)
         self.bt_edit.configure(state=DISABLED)
-        # clean y return siempre activos
+        # clean y return always active
     
     def new_sale_buy(self):
         # Validate
@@ -399,23 +496,23 @@ class Sales(Frame):
             
             # Actualizar puntos
             points = 0
-            print("Discount -> ", self.discount)
+            # print("Discount -> ", self.discount)
             if self.discount == False:
                 points = self.calculate_points(total)
             
             customer_id = find_id(self.customers, self.selected_customer.get())
-            print("customer_id -> ", customer_id)
+            # print("customer_id -> ", customer_id)
             customer = db_customer.get_customer_by_id(self, customer_id)
             if self.discount:
                 customer.set_points(0)
             else:
                 customer.set_points(customer.get_points() + points)
             
-            print("customer points -> ", customer.get_points())
+            # print("customer points -> ", customer.get_points())
             db_customer.edit(self, customer)
             
             # Actualizar banderas y estados (Cambiar el estado aqui para que no cambie el funcionamiento del boton clean)
-            messagebox.showinfo("Venta exitosa", "Cambio: $"+str(change))
+            messagebox.showinfo("Venta exitosa", "Cambio: $"+str(change)+"\nPuntos obtenidos: "+str(points))
             self.new_sale_state = 0
             self.discount = False
             self.default()
@@ -448,9 +545,16 @@ class Sales(Frame):
     
     # region edit
     def edit_product(self):
+        
+        # Give access to "cajero" profile
+        if self.search_band == True:
+            if self.controller.shared_data["VALIDATE"] == False and self.profile.get_profile() == "cajero":
+                self.controller.show_frame("Login_Manager")
+                return
+        
         try:
             self.get_sale()
-            self.band = self.EDITAR
+            self.band = 0
             self.bt_add.configure(text="Guardar")
             self.bt_remove.configure(state=DISABLED)
             self.bt_new.configure(state=DISABLED)
@@ -458,35 +562,103 @@ class Sales(Frame):
             print("[-] edit_product: ", err)
             messagebox.showerror("Error", "No se logro editar el producto")
     
+    def edit_existing_sale(self):
+        # query list
+        # save, edit, remove detail_sale
+        if self.query_list is None or self.query_list == dict():
+            print("Query list empty")
+        else:
+            try:
+                for item in self.query_list:
+                    if item[0] == "SAVE":
+                        db_detail_sale.save(self, item[1])
+                    elif item[0] == "EDIT":
+                        db_detail_sale.edit(self, item[1])
+                    elif item[0] == "REMOVE":
+                        db_detail_sale.remove(self, item[1])
+                    else:
+                        raise Exception(f"Invalid Query: [{item[0]}, {item[1]}]")
+            except Exception as err:
+                print("[-] edit_existing_sale query_list: ", err)
+                messagebox.showerror("Error >_<", err)
+                return
+        
+        # Edit sale
+        customer_id = find_id(self.customers, self.selected_customer.get())
+        total = self.get_total()
+        sale_id = self.selected_sale.get()
+        aux = db_sale.get_sale_by_id(self, sale_id)
+        sale = sale_class(
+            sale_id,
+            customer_id,
+            total,
+            aux.get_date(),
+            discount=aux.get_discount()
+        )
+        try:
+            db_sale.edit(self, sale)
+        except Exception as err:
+            print("[-]edit_existing_sale db_sale.edit(): ", err)
+            messagebox.showerror("Error >_<", err)
+            return
+        
+        messagebox.showinfo("0u0", "Venta editada correctamente!")
+        self.default()
+    
     # region remove
     def remove_product(self):
-        if self.search_band == False:
-            try:
-                selected = self.table.focus()
-                if selected is None or selected == "":
-                    messagebox.showinfo(">_<", "No se selecciono un producto")
-                    return
-                
-                values = self.table.item(selected, "values")
-                if values[-2] == "Total":
-                    messagebox.showinfo(">_<", "No se puede eliminar el total")
-                    return
-                
-                self.table.delete(selected)
-                # Update total
-                self.delete_last_row()
-                if self.table.get_children():
-                    self.insert_total()
-                else:
-                    self.new_sale_state = 1
-            except Exception as err:
-                print("[-] remove_product: ", err)
-                messagebox.showerror("Error", "No se logro eliminar el producto")
+        # Give access to "cajero" profile
+        if self.search_band == True:
+            if self.controller.shared_data["VALIDATE"] == False and self.profile.get_profile() == "cajero":
+                self.controller.show_frame("Login_Manager")
+                return
+        
+        try:
+            selected = self.table.focus()
+            if selected is None or selected == "":
+                messagebox.showinfo(">_<", "No se selecciono un producto")
+                return
+            
+            values = self.table.item(selected, "values")
+            
+            if values[-2] == "Total":
+                messagebox.showinfo(">_<", "No se puede eliminar el total")
+                return
+            
+            self.table.delete(selected)
+            
+            # Update total
+            self.delete_last_row()
+            if self.table.get_children():
+                self.insert_total()
+            else:
+                self.new_sale_state = 1
+            
+            if self.search_band == True:
+                product_id = find_id(self.products, values[2])
+                detail_product = detail_sale_class(
+                    sale_id=int(values[0]),
+                    product_id=product_id
+                )
+                self.query_list.append(["REMOVE", detail_product])
+            
+        except Exception as err:
+            print("[-] remove_product: ", err)
+            messagebox.showerror("Error", "No se logro eliminar el producto")
     
     # region cancel
     def cancel_sale(self):
+        # Give access to "cajero" profile
+        if self.search_band == True:
+            if self.controller.shared_data["VALIDATE"] == False and self.profile.get_profile() == "cajero":
+                self.controller.show_frame("Login_Manager")
+                return
+        
         try:
-            db_sale.remove(self, int(self.selected_search_sale.get()))
+            sale_id = int(self.selected_search_sale.get())
+            db_detail_sale.remove_by_sale_id(self, sale_id)
+            sale = sale_class(id=sale_id)
+            db_sale.remove(self, sale)
             messagebox.showinfo(">u<", "Venta cancelada")
             self.default()
         except Exception as err:
@@ -514,11 +686,13 @@ class Sales(Frame):
             raise Exception("Error al guardar el detalle de la venta")
     
     def calculate_points(self, total: float) -> int:
-        points = int(total // 500)
+        points = 0
+        if total >= 500:
+            points = int(total // 100)
         return points
     
     # region default
-    def default(self) -> None:
+    def default(self) -> None:        
         if self.new_sale_state == 3:
             self.new_sale_state = 2
             self.state(True)
@@ -537,6 +711,7 @@ class Sales(Frame):
         
         self.id_sales = db_sale.get_id_sales(self)
         self.opm_search_sale.configure(values=self.id_sales)
+        self.opm_search_sale.set(self.id_sales[0] if len(self.id_sales) > 0 else "No disponible")
         self.state(True)
         self.clear_sale()
         self.clear_table()
@@ -553,9 +728,12 @@ class Sales(Frame):
         self.bt_add.configure(text="Añadir producto")
         self.bt_clean.configure(text="Limpiar")
         self.state(False)
-        self.band = None
+        self.band = 1
         self.new_sale_state = 0
+        self.edit_sale_state = 0
         self.search_band = False
+        self.query_list = list()
+        self.controller.shared_data["VALIDATE"] = False
     
     # region state
     def state(self, state: bool) -> None:
@@ -587,7 +765,9 @@ class Sales(Frame):
             self.table.insert("", "end", iid=i, values=row)
     
     def insert_new_row(self, data: list) -> None:
-        self.table.insert("", "end", iid=len(self.table.get_children()), values=data)
+        # Se modifico debido a un error en la inserción de la fila al añadir un producto que fue eliminado previamente y se volvio a añadir (probado con una venta existente)
+        # self.table.insert("", "end", iid=len(self.table.get_children()), values=data)
+        self.table.insert("", "end", values=data)
     
     def delete_last_row(self) -> None:
         self.table.delete(self.table.get_children()[-1])
@@ -600,10 +780,20 @@ class Sales(Frame):
     
     def get_total(self) -> float:
         return float(self.table.item(self.table.get_children()[-1], "values")[-1])
+
+    def table_is_empty(self) -> bool:
+        return self.table.get_children() is None or self.table.get_children() == ()
+     
+    # No se usa
+    def total_row_exist(self) -> bool:
+        return self.table.item(self.table.get_children()[-1], "values")[-2] == "Total"
     
     def insert_total(self) -> None:
         total = self.calculate_total()
-        self.table.insert("", "end", values=["", "", "", "", "", "", "Total", total])
+        if total >= 500:
+            self.table.insert("", "end", values=["", "", "", "", "", "10%", "Total", total*0.9])
+        else:
+            self.table.insert("", "end", values=["", "", "", "", "", "", "Total", total])
     
     def search_name_table(self, name) -> str | None:
         for item in self.table.get_children():
@@ -653,9 +843,6 @@ class Sales(Frame):
         if int(self.tx_quantity.get()) > stock:
             raise Exception(f"No hay suficiente stock de este producto\nStock: {stock}")
 
-    def _return(self) -> None:
-        self.controller.show_frame("Menu")
-        
     def validate_buy(self) -> None:
         if(self.tx_pay.get() == ""):
             raise Exception("Ingrese el pago")
@@ -664,3 +851,7 @@ class Sales(Frame):
             float(self.tx_pay.get())
         except:
             raise Exception("El pago debe ser un número")
+    
+    def _return(self) -> None:
+        self.controller.shared_data["VALIDATE"] = False
+        self.controller.show_frame("Menu")

@@ -127,6 +127,23 @@ class db_sale:
         except Exception as err:
             print("[-] get_customer_by_sale_id: ", err)
             messagebox.showerror("Error", "Error en la consulta")
+            
+    def get_sale_by_id(self, sale_id: int) -> sale_class:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT * FROM sale WHERE id={sale_id}"
+            self.cursor.execute(self.sql)
+            row = self.cursor.fetchone()
+            self.conn.commit()
+            if row is None:
+                raise Exception("No se encontro la venta")
+            return sale_class(int(row[0]), int(row[1]), float(row[2]), row[3], float(row[4]))
+        except Exception as err:
+            print("[-] get_sale_by_id: ", err)
+            messagebox.showerror("Error", "Error en la consulta")
+        finally:
+            self.conn.close()
     
     def close(self):
         self.conn.close()

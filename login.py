@@ -4,13 +4,13 @@ from functions import is_empty
 from db_user import db_user
 from user import user as user_class
 from menu import Menu
-from table import Table
 from users import Users
 from customers import Customers
 from suppliers import Suppliers
 from products import Products
 from purchases import Purchases
 from sales import Sales
+from login_manager import Login_Manager
 
 class Login(Frame):
     def __init__(self, container, controller, *args, **kwargs):
@@ -63,7 +63,7 @@ class Login(Frame):
         aux = user_class(username=username, password=password)
         self.user = db_user.authenticate(self, aux)
         
-        if self.user is not None:
+        if self.user.get_profile() == "admin":
             windows = {
                 "Menu": Menu,
                 "Users": Users,
@@ -73,10 +73,22 @@ class Login(Frame):
                 "Purchases": Purchases,
                 "Sales": Sales
             }
-            
-            # Recorrer las clases
-            for key, F in windows.items():
-                # La llave se vuelve la clase
-                self.controller.add_frame(key, F, self.user)
+        if self.user.get_profile() == "gerente":
+            windows = {
+                "Menu": Menu,
+                "Customers": Customers,
+                "Sales": Sales
+            }
+        if self.user.get_profile() == "cajero":
+            windows = {
+                "Menu": Menu,
+                "Sales": Sales,
+                "Login_Manager": Login_Manager
+            }
+        
+        # Recorrer las clases
+        for key, F in windows.items():
+            # La llave se vuelve la clase
+            self.controller.add_frame(key, F, self.user)
 
-            self.controller.show_frame("Menu")
+        self.controller.show_frame("Menu")

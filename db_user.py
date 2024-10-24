@@ -10,7 +10,7 @@ class db_user:
     def save(self, user: user_class) -> None:
         self.con = con.conection()
         self.conn = self.con.open()
-        self.cursor1 = self.conn.cursor()
+        self.cursor = self.conn.cursor()
         self.sql = f"INSERT INTO {table}(id, name, username, password, profile) values (%s,%s,%s,%s,%s)"
         self.data = (
             user.get_id(),
@@ -19,7 +19,7 @@ class db_user:
             user.get_password(),
             user.get_profile()
         )
-        self.cursor1.execute(self.sql, self.data)
+        self.cursor.execute(self.sql, self.data)
         self.conn.commit()
         self.conn.close()
         
@@ -44,7 +44,7 @@ class db_user:
         try:
             self.con = con.conection()
             self.conn = self.con.open()
-            self.cursor1 = self.conn.cursor()
+            self.cursor = self.conn.cursor()
             self.sql = f"UPDATE {table} SET name=%s, username=%s, profile=%s, password=%s WHERE id={user.get_id()}"
             self.data = (
                 user.get_name(),
@@ -52,7 +52,7 @@ class db_user:
                 user.get_profile(),
                 user.get_password()
             )
-            self.cursor1.execute(self.sql, self.data)
+            self.cursor.execute(self.sql, self.data)
             self.conn.commit()
         except Exception as err:
             print(f"[-] edit in db_user: {err}")
@@ -64,9 +64,9 @@ class db_user:
         try:
             self.con = con.conection()
             self.conn = self.con.open()
-            self.cursor1 = self.conn.cursor()
+            self.cursor = self.conn.cursor()
             self.sql = f"DELETE FROM {table} WHERE id={user.get_id()}"
-            self.cursor1.execute(self.sql)
+            self.cursor.execute(self.sql)
             self.conn.commit()
         except Exception as err:
             print(f"[-] remove in db_user: {err}")
@@ -81,11 +81,11 @@ class db_user:
         try:
             self.con = con.conection()
             self.conn = self.con.open()
-            self.cursor1 = self.conn.cursor()
+            self.cursor = self.conn.cursor()
             aux = None
             self.sql = f"SELECT * FROM {table}"
-            self.cursor1.execute(self.sql)
-            rows = self.cursor1.fetchall()
+            self.cursor.execute(self.sql)
+            rows = self.cursor.fetchall()
             self.conn.commit()
             self.conn.close()
             if rows is None:
@@ -99,15 +99,43 @@ class db_user:
         try:
             self.con = con.conection()
             self.conn = self.con.open()
-            self.cursor1 = self.conn.cursor()
+            self.cursor = self.conn.cursor()
             self.sql = f"SELECT * FROM {table} WHERE username='{user.get_username()}'"
-            self.cursor1.execute(self.sql)
-            row = self.cursor1.fetchone()
+            self.cursor.execute(self.sql)
+            row = self.cursor.fetchone()
             self.conn.commit()
             self.conn.close()
             if row is not None:
                 if user.get_password() == row[3]:
                     return user_class(int(row[0]), row[1], row[2], row[3], row[4])
+                else:
+                    messagebox.showwarning("Error", "La contraseña no coincide")
+            else:
+                messagebox.showwarning("Error", "No se encontro el username")
+            return None
+        except mysql.Error as err:
+            print(f"[-] Mysql: {err}")
+            messagebox.showerror("DB Error", f"Error en la BD")
+        except Exception as err:
+            print(f"[-] {err}")
+            messagebox.showerror("Error", f"Error al autenticar")
+            return None
+
+    def authenticate_manager(self, user: user_class) -> user_class:
+        try:
+            self.conn = con.conection().open()
+            self.cursor = self.conn.cursor()
+            self.sql = f"SELECT * FROM {table} WHERE username='{user.get_username()}'"
+            self.cursor.execute(self.sql)
+            row = self.cursor.fetchone()
+            self.conn.commit()
+            self.conn.close()
+            if row is not None:
+                if user.get_password() == row[3]:
+                    if row[4] == "gerente":
+                        return user_class(int(row[0]), row[1], row[2], row[3], row[4])
+                    else:
+                        messagebox.showwarning("Error", "No tienes permisos para acceder")
                 else:
                     messagebox.showwarning("Error", "La contraseña no coincide")
             else:

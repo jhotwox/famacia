@@ -13,7 +13,7 @@ class myApp(CTk):
         self.main_container = Frame(self)
         self.main_container.grid(padx=40, pady=40, sticky="nsew")
         
-        self.shared_data = dict()
+        self.shared_data = {"VALIDATE": False}
         
         # Todas las clases de frames
         self.frames = dict()
@@ -36,6 +36,12 @@ class myApp(CTk):
             frame.configure(width=600, height=400)
             self.frames[page_name] = frame
             frame.grid(row=0, column=0, sticky="nsew")
+            
+    def delete_frames(self) -> None:
+        for key, frame in list(self.frames.items()):
+            if key != "Login":
+                frame.destroy()
+                del self.frames[key]
     
 root = myApp()
 root.mainloop()

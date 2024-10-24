@@ -27,24 +27,24 @@ class Menu(Frame):
         self.bt_new_sale = Button(self, text="Nueva venta", command=self.open_new_sale)
         self.bt_new_sale.grid(row=3, column=0, padx=10, pady=10)
         
-        self.bt_sales = Button(self, text="Ventas", command=self.open_sales)
-        self.bt_sales.grid(row=3, column=1, padx=10, pady=10)
-        
         self.bt_suppliers = Button(self, text="Proveedores", command=self.open_suppliers)
-        self.bt_suppliers.grid(row=4, column=0, padx=10, pady=10)
+        self.bt_suppliers.grid(row=3, column=1, padx=10, pady=10)
         
         self.btExit = Button(self, text="Salir", command=self.exit)
-        self.btExit.grid(row=4, column=1, padx=10, pady=10)
+        self.btExit.grid(row=4, column=0, pady=10, padx=35, columnspan=2, sticky="ew")
         
-        if profile.get_profile() == "secretaria":
+        if profile.get_profile() == "gerente":
             self.bt_users.configure(state=DISABLED)
+            self.bt_products.configure(state=DISABLED)
             self.bt_purchases.configure(state=DISABLED)
-            self.bt_new_sale.configure(state=DISABLED)
+            self.bt_suppliers.configure(state=DISABLED)
         
-        if profile.get_profile() == "mecanico":
+        if profile.get_profile() == "cajero":
             self.bt_users.configure(state=DISABLED)
             self.bt_customers.configure(state=DISABLED)
-            self.bt_new_sale.configure(state=DISABLED)
+            self.bt_products.configure(state=DISABLED)
+            self.bt_purchases.configure(state=DISABLED)
+            self.bt_suppliers.configure(state=DISABLED)
     
     def open_users(self) -> None:
         self.controller.show_frame("Users") 
@@ -61,14 +61,12 @@ class Menu(Frame):
     def open_new_sale(self) -> None:
         self.controller.show_frame("Sales")
         
-    def open_sales(self) -> None:
-        return 
-        
     def open_suppliers(self) -> None:
         self.controller.show_frame("Suppliers")
         
     def exit(self) -> None:
         if hasattr(self.controller, "show_frame"):
             self.controller.show_frame("Login")
+            self.controller.delete_frames()
         else:
             print("[-] Error con el controlador")
