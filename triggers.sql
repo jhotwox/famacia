@@ -89,3 +89,4 @@ detail_purchase.purchase_id = 1;
 SELECT DISTINCT category FROM product;
 
 -- SELECT sale.id, detail_sale.quantity, product.name, detail_sale.unitary_price, sale.discount, (detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) AS subtotal, ((detail_sale.unitary_price * detail_sale.quantity* (1 - sale.discount*0.01)) * 0.16) AS iva, ((detail_sale.unitary_price * detail_sale.quantity * (1 - sale.discount*0.01)) * 1.16) AS total FROM detail_sale, sale, product WHERE detail_sale.sale_id = sale.id AND detail_sale.product_id = product.id AND sale.id = 3;
+

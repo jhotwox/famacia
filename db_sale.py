@@ -5,6 +5,7 @@ from db_functions import max_id
 
 from user import user as user_class
 
+import mysql.connector as mysql
 table = "sale"
 
 class db_sale:
@@ -16,7 +17,7 @@ class db_sale:
             self.data = (
                 sale.get_id(),
                 sale.get_customer_id(),
-                sale.get_total(),
+                0,
                 sale.get_date(),
                 sale.get_discount()
             )
@@ -25,6 +26,9 @@ class db_sale:
         except Exception as err:
             print(f"[-] save: {err}")
             messagebox.showerror("Error", "Error al guardar venta")
+        except mysql.Error as err:
+            print(f"[-] save SQL: {err}")
+            messagebox.showerror("Error SQL", "Error al guardar venta")
         finally:
             self.conn.close()
     

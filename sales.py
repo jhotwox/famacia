@@ -468,24 +468,28 @@ class Sales(Frame):
             return
         
         # Comprobar que pago sea suficiente
+        print("Before get total")
         total = self.get_total()
+        print("total -> ", total)
         change = float(self.tx_pay.get()) - total
+        print("Cambio -> ", change)
         if change < 0:
             messagebox.showerror("Error", "El pago no es suficiente\n Faltan: $"+str(-change))
             return
         
-        self.state(False)
+        self.state (False)
         
         try:
             # Crear venta
             sale = sale_class(
                 id=int(self.selected_sale.get()),
                 customer_id=find_id(self.customers, self.selected_customer.get()),
-                total=total,
+                total=round(total, 2),
                 date=get_datetime(),
                 discount=50 if self.discount else 0
             )
             db_sale.save(self, sale)
+            print("Venta creada")
             
             # Obtener todas las filas de la tabla
             rows = self.obtain_rows_table()

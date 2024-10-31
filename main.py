@@ -9,7 +9,7 @@ class myApp(CTk):
         self.title("FARMACIA")
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-        
+         
         self.main_container = Frame(self)
         self.main_container.grid(padx=40, pady=40, sticky="nsew")
         
